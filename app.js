@@ -3,7 +3,7 @@
 // ============================================================
 
 const API_BASE = '/api/yt';
-const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff?text=Music';
+const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff.png?text=Music';
 
 let songs = [];
 let currentIndex = -1;
