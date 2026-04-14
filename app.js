@@ -5,7 +5,7 @@
 const API_BASE = '/api/yt';
 const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff.png?text=Music';
 const SEARCH_CACHE_TTL = 30 * 60 * 1000; // 30 min cache for searches
-const REQUEST_TIMEOUT = 30000; // 30 second timeout (matching server)
+const REQUEST_TIMEOUT = 65000; // 65 second timeout (matching server)
 
 let songs = [];
 let currentIndex = -1;

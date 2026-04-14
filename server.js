@@ -57,10 +57,10 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
         '--no-check-certificate',
         '--geo-bypass',
         '-q',  // Quiet mode for faster output
-        '--socket-timeout', '10',  // 10 sec socket timeout
         ...args
     ];
 
+    console.log(`[yt-dlp] Starting: ${args.join(' ').substring(0, 100)}`);
     const child = spawn(pythonBin, ytdlpArgs, {
         cwd: ROOT,
         windowsHide: true
@@ -74,7 +74,7 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
             child.kill();
             reject(new Error('Search timed out. Please try again.'));
         }
-    }, 25000);  // 25 sec hard timeout (yt-dlp can be slow on first run)
+    }, 60000);  // 60 sec timeout - yt-dlp can be slow
 
     child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
@@ -87,12 +87,14 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
     child.on('error', (err) => {
         clearTimeout(timeoutHandle);
         completed = true;
+        console.error(`[yt-dlp] Process error: ${err.message}`);
         reject(err);
     });
 
     child.on('close', (code) => {
         clearTimeout(timeoutHandle);
         completed = true;
+        console.log(`[yt-dlp] Exit code: ${code}, output length: ${stdout.length}`);
         if (code !== 0) {
             const message = stderr.trim();
             const lower = message.toLowerCase();
@@ -156,10 +158,11 @@ const setCachedStream = (id, value) => {
 };
 
 const searchYoutube = async (query, limit) => {
-    // Reduced search request size for faster yt-dlp execution
-    const searchLimit = Math.min(Math.ceil(limit * 1.2), 30);
+    // Minimal search for speed - just need to find something playable
+    const searchLimit = Math.min(Math.ceil(limit * 1.1), 20);
     const json = await runYtDlp([
         '--dump-single-json',
+        '--match-filters', '!is_live',  // Pre-filter live streams
         `ytsearch${searchLimit}:${query}`
     ]);
 
@@ -280,8 +283,15 @@ const server = http.createServer(async (req, res) => {
                 sendJson(res, 400, { status: 400, message: 'Missing q parameter', response: [] }, req);
                 return;
             }
-            const results = await searchYoutube(query, limit);
-            sendJson(res, 200, { status: 200, message: 'success', response: results }, req);
+            console.log(`[API] Search request: "${query.substring(0, 50)}" limit=${limit}`);
+            try {
+                const results = await searchYoutube(query, limit);
+                console.log(`[API] Search success: ${results.length} results`);
+                sendJson(res, 200, { status: 200, message: 'success', response: results }, req);
+            } catch (error) {
+                console.error(`[API] Search error: ${error.message}`);
+                sendJson(res, 500, { status: 500, message: error.message, response: [] }, req);
+            }
             return;
         }
 
