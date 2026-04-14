@@ -5,7 +5,7 @@
 const API_BASE = '/api/yt';
 const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff.png?text=Music';
 const SEARCH_CACHE_TTL = 30 * 60 * 1000; // 30 min cache for searches
-const REQUEST_TIMEOUT = 15000; // 15 second timeout
+const REQUEST_TIMEOUT = 30000; // 30 second timeout (matching server)
 
 let songs = [];
 let currentIndex = -1;
@@ -140,7 +140,7 @@ const apiGet = async (path, params = {}, signal = null) => {
     }
 };
 
-const searchSongs = async (query, limit = 30, signal = null) => {
+const searchSongs = async (query, limit = 20, signal = null) => {
     return apiGet('/search', { q: query, limit }, signal);
 };
 
@@ -385,7 +385,7 @@ const loadGenreToList = async (genre, containerId) => {
     container.innerHTML = `<div class="loading-spinner"><div class="spinner"></div> Loading ${genre}...</div>`;
 
     try {
-        const tracks = await searchSongs(genre, 40, signal);
+        const tracks = await searchSongs(genre, 20, signal);
         renderTrackList(tracks, containerId);
         clearRuntimeBanner();
     } catch (error) {
@@ -407,14 +407,14 @@ const loadHome = async () => {
     show('featured-grid');
     
     try {
-        // Load featured first (most visible)
-        const featured = await searchSongs('bollywood hits songs', 24, signal);
+        // Load featured first (most visible) - smaller limit for speed
+        const featured = await searchSongs('bollywood hits songs', 12, signal);
         renderRecentGrid(featured, 'featured-grid');
         
         // Load trending and releases in parallel in background
         const [trending, releases] = await Promise.all([
-            searchSongs('punjabi hits songs', 24, signal),
-            searchSongs('new hindi songs', 24, signal)
+            searchSongs('punjabi hits songs', 12, signal),
+            searchSongs('new hindi songs', 12, signal)
         ]);
         renderCardGrid(trending, 'trending-grid');
         renderCardGrid(releases, 'new-releases-grid');
@@ -486,7 +486,7 @@ const performSearch = async (query) => {
     document.getElementById('search-results-list').innerHTML = `<div class="loading-spinner"><div class="spinner"></div> Searching...</div>`;
 
     try {
-        const tracks = await searchSongs(query, 40, signal);
+        const tracks = await searchSongs(query, 20, signal);
         renderTrackList(tracks, 'search-results-list');
         clearRuntimeBanner();
     } catch (error) {
@@ -507,13 +507,8 @@ searchInput.addEventListener('input', () => {
         return;
     }
 
-    // Minimum 2 chars to avoid excessive searches
-    if (query.length < 2) {
-        return;
-    }
-
     clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => performSearch(query), 600);
+    searchDebounce = setTimeout(() => performSearch(query), 800);
 });
 
 searchInput.addEventListener('keydown', (event) => {

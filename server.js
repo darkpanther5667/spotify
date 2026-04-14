@@ -74,7 +74,7 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
             child.kill();
             reject(new Error('Search timed out. Please try again.'));
         }
-    }, 12000);  // 12 sec hard timeout
+    }, 25000);  // 25 sec hard timeout (yt-dlp can be slow on first run)
 
     child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
@@ -156,8 +156,8 @@ const setCachedStream = (id, value) => {
 };
 
 const searchYoutube = async (query, limit) => {
-    // Reduced multiplier for faster results (2x -> 1.5x)
-    const searchLimit = Math.min(Math.ceil(limit * 1.5), 40);
+    // Reduced search request size for faster yt-dlp execution
+    const searchLimit = Math.min(Math.ceil(limit * 1.2), 30);
     const json = await runYtDlp([
         '--dump-single-json',
         `ytsearch${searchLimit}:${query}`
