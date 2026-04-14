@@ -32,6 +32,13 @@ const searchInput = document.getElementById('search-input');
 const searchClear = document.getElementById('search-clear');
 const runtimeBanner = document.getElementById('runtime-banner');
 
+const toggleSidebar = () => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('show');
+};
+
 const fmtSec = (seconds) => {
     if (!seconds || Number.isNaN(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);

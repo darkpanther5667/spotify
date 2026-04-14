@@ -414,3 +414,154 @@ body {
     width: 12px; height: 12px; background: white;
     border-radius: 50%;
 }
+
+/* ===== MOBILE OPTIMIZATION ===== */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 0px;
+        --player-height: 80px;
+    }
+
+    .app-container {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr var(--player-height);
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -260px;
+        width: 260px;
+        height: 100vh;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        grid-column: unset;
+        grid-row: unset;
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .content-area {
+        padding: 16px;
+    }
+
+    .hero-section h1 {
+        font-size: 24px;
+    }
+
+    .recent-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .recent-card {
+        height: 60px;
+    }
+
+    .recent-card img {
+        width: 60px;
+        height: 60px;
+    }
+
+    .recent-card span {
+        font-size: 14px;
+    }
+
+    .player {
+        padding: 0 16px;
+    }
+
+    .now-playing {
+        width: 40%;
+        min-width: 120px;
+    }
+
+    .now-playing img {
+        width: 48px;
+        height: 48px;
+        margin-right: 8px;
+    }
+
+    .track-name {
+        font-size: 13px;
+    }
+
+    .artist-name {
+        font-size: 11px;
+    }
+
+    .player-controls {
+        width: 20%;
+    }
+
+    .control-buttons {
+        gap: 12px;
+    }
+
+    .icon-btn {
+        font-size: 18px;
+    }
+
+    .play-pause-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 18px;
+    }
+
+    .volume-controls {
+        width: 40%;
+        min-width: 100px;
+    }
+
+    .volume-controls .time {
+        display: none;
+    }
+
+    .progress-container {
+        gap: 6px;
+    }
+
+    .time {
+        font-size: 10px;
+        min-width: 30px;
+    }
+}
+
+/* Hamburger menu button */
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-highlight);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 8px;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1001;
+}
+
+@media (max-width: 768px) {
+    .hamburger {
+        display: block;
+    }
+}
+
+/* Overlay for mobile sidebar */
+.overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.overlay.show {
+    display: block;
+}
