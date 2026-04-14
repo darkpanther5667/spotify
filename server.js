@@ -22,8 +22,32 @@ const MIME_TYPES = {
     '.ico': 'image/x-icon'
 };
 
+const spawnSync = require('child_process').spawnSync;
+
+const findPython = () => {
+    const candidates = ['/app/venv/bin/python', 'python3', 'python'];
+    for (const bin of candidates) {
+        if (bin.startsWith('/')) {
+            if (fs.existsSync(bin)) {
+                return bin;
+            }
+            continue;
+        }
+        const result = spawnSync(bin, ['--version'], { stdio: 'ignore' });
+        if (result.status === 0) {
+            return bin;
+        }
+    }
+    return null;
+};
+
 const runYtDlp = (args) => new Promise((resolve, reject) => {
-    const child = spawn('/app/venv/bin/python', ['-m', 'yt_dlp', '--no-warnings', '--js-runtimes', 'node', ...args], {
+    const pythonBin = findPython();
+    if (!pythonBin) {
+        return reject(new Error('Python runtime not found. Make sure python3 is installed or /app/venv/bin/python exists.'));
+    }
+
+    const child = spawn(pythonBin, ['-m', 'yt_dlp', '--no-warnings', '--js-runtimes', 'node', ...args], {
         cwd: ROOT,
         windowsHide: true
     });
