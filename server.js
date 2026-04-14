@@ -121,14 +121,22 @@ const setCachedStream = (id, value) => {
 };
 
 const searchYoutube = async (query, limit) => {
+    const searchLimit = Math.min(limit * 2, 50);
     const json = await runYtDlp([
-        '--flat-playlist',
         '--dump-single-json',
-        `ytsearch${limit}:${query}`
+        `ytsearch${searchLimit}:${query}`
     ]);
 
     const data = JSON.parse(json);
-    return (data.entries || []).map((entry) => ({
+    const filtered = (data.entries || []).filter((entry) => {
+        if (!entry || !entry.id || !entry.title) return false;
+        if (entry.availability && entry.availability !== 'public') return false;
+        if (entry.age_limit && entry.age_limit > 0) return false;
+        if (entry.is_live) return false;
+        return true;
+    });
+
+    return filtered.slice(0, limit).map((entry) => ({
         id: entry.id,
         title: entry.title,
         artist: entry.channel || entry.uploader || 'YouTube',
@@ -148,10 +156,23 @@ const getStream = async (id) => {
         '--dump-single-json',
         '-f',
         'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+        '--no-check-certificate',
+        '--geo-bypass',
         `https://www.youtube.com/watch?v=${id}`
     ]);
 
     const data = JSON.parse(json);
+
+    if (data.availability && data.availability !== 'public') {
+        throw new Error('This track is unavailable on YouTube.');
+    }
+    if (data.age_limit && data.age_limit > 0) {
+        throw new Error('This track is age-restricted and cannot be streamed without YouTube sign-in.');
+    }
+    if (data.is_live) {
+        throw new Error('Live streams are not supported.');
+    }
+
     const audioFormats = (data.formats || []).filter((format) =>
         format.acodec && format.acodec !== 'none' && format.vcodec === 'none' && format.url
     );
