@@ -55,6 +55,8 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
         'node',
         '--no-check-certificate',
         '--geo-bypass',
+        '-q',  // Quiet mode for faster output
+        '--socket-timeout', '10',  // 10 sec socket timeout
         ...args
     ];
 
@@ -65,6 +67,13 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
 
     let stdout = '';
     let stderr = '';
+    let completed = false;
+    const timeoutHandle = setTimeout(() => {
+        if (!completed) {
+            child.kill();
+            reject(new Error('Search timed out. Please try again.'));
+        }
+    }, 12000);  // 12 sec hard timeout
 
     child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
@@ -74,8 +83,15 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
         stderr += chunk.toString();
     });
 
-    child.on('error', reject);
+    child.on('error', (err) => {
+        clearTimeout(timeoutHandle);
+        completed = true;
+        reject(err);
+    });
+
     child.on('close', (code) => {
+        clearTimeout(timeoutHandle);
+        completed = true;
         if (code !== 0) {
             const message = stderr.trim();
             const lower = message.toLowerCase();
@@ -97,7 +113,7 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
 const sendJson = (res, statusCode, body) => {
     res.writeHead(statusCode, {
         'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'public, max-age=300',  // Cache API responses for 5 min
         'Access-Control-Allow-Origin': '*'
     });
     res.end(JSON.stringify(body));
@@ -121,7 +137,8 @@ const setCachedStream = (id, value) => {
 };
 
 const searchYoutube = async (query, limit) => {
-    const searchLimit = Math.min(limit * 2, 50);
+    // Reduced multiplier for faster results (2x -> 1.5x)
+    const searchLimit = Math.min(Math.ceil(limit * 1.5), 40);
     const json = await runYtDlp([
         '--dump-single-json',
         `ytsearch${searchLimit}:${query}`
@@ -130,7 +147,8 @@ const searchYoutube = async (query, limit) => {
     const data = JSON.parse(json);
     const filtered = (data.entries || []).filter((entry) => {
         if (!entry || !entry.id || !entry.title) return false;
-        if (entry.availability && entry.availability !== 'public') return false;
+        // Quick availability check
+        if (entry.availability !== undefined && entry.availability !== 'public') return false;
         if (entry.age_limit && entry.age_limit > 0) return false;
         if (entry.is_live) return false;
         return true;
@@ -289,9 +307,11 @@ const server = http.createServer(async (req, res) => {
             }
 
             const ext = path.extname(safePath).toLowerCase();
+            // Longer cache for CSS/JS, shorter for HTML
+            const cacheControl = ext === '.html' ? 'public, max-age=60' : 'public, max-age=3600';
             res.writeHead(200, {
                 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-                'Cache-Control': 'no-store'
+                'Cache-Control': cacheControl
             });
             res.end(content);
         });

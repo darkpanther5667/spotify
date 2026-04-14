@@ -4,6 +4,8 @@
 
 const API_BASE = '/api/yt';
 const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff.png?text=Music';
+const SEARCH_CACHE_TTL = 30 * 60 * 1000; // 30 min cache for searches
+const REQUEST_TIMEOUT = 15000; // 15 second timeout
 
 let songs = [];
 let currentIndex = -1;
@@ -14,6 +16,21 @@ let repeatMode = 0;
 let liked = new Set();
 let prevVolume = 0.7;
 let currentAbortController = null;
+
+// Search result cache
+const searchCache = new Map();
+const getCachedSearch = (key) => {
+    const cached = searchCache.get(key);
+    if (!cached) return null;
+    if (cached.expiresAt < Date.now()) {
+        searchCache.delete(key);
+        return null;
+    }
+    return cached.results;
+};
+const setCachedSearch = (key, results) => {
+    searchCache.set(key, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+};
 
 const audio = document.getElementById('audio-player');
 const playPauseBtn = document.getElementById('main-play-pause');
@@ -92,12 +109,35 @@ const setVolume = (volume) => {
 
 const apiGet = async (path, params = {}, signal = null) => {
     const qs = new URLSearchParams(params);
-    const response = await fetch(`${API_BASE}${path}?${qs.toString()}`, { signal });
-    const data = await response.json();
-    if (!response.ok || data.status !== 200) {
-        throw new Error(data.message || `Request failed (${response.status})`);
+    const cacheKey = `${path}?${qs.toString()}`;
+    
+    // Return cached search results if available
+    if (path === '/search') {
+        const cached = getCachedSearch(cacheKey);
+        if (cached) return cached;
     }
-    return data.response;
+    
+    // Wrap with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const finalSignal = signal || controller.signal;
+    
+    try {
+        const response = await fetch(`${API_BASE}${path}?${qs.toString()}`, { signal: finalSignal });
+        const data = await response.json();
+        if (!response.ok || data.status !== 200) {
+            throw new Error(data.message || `Request failed (${response.status})`);
+        }
+        
+        // Cache search results
+        if (path === '/search') {
+            setCachedSearch(cacheKey, data.response);
+        }
+        
+        return data.response;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 };
 
 const searchSongs = async (query, limit = 30, signal = null) => {
@@ -291,13 +331,20 @@ const loadHome = async () => {
     currentAbortController = new AbortController();
     const signal = currentAbortController.signal;
 
+    // Show skeletons immediately, load in background
+    const show = (containerId) => document.getElementById(containerId).style.display = 'block';
+    show('featured-grid');
+    
     try {
-        const [featured, trending, releases] = await Promise.all([
-            searchSongs('bollywood hits songs', 24, signal),
+        // Load featured first (most visible)
+        const featured = await searchSongs('bollywood hits songs', 24, signal);
+        renderRecentGrid(featured, 'featured-grid');
+        
+        // Load trending and releases in parallel in background
+        const [trending, releases] = await Promise.all([
             searchSongs('punjabi hits songs', 24, signal),
             searchSongs('new hindi songs', 24, signal)
         ]);
-        renderRecentGrid(featured, 'featured-grid');
         renderCardGrid(trending, 'trending-grid');
         renderCardGrid(releases, 'new-releases-grid');
         clearRuntimeBanner();
@@ -389,8 +436,13 @@ searchInput.addEventListener('input', () => {
         return;
     }
 
+    // Minimum 2 chars to avoid excessive searches
+    if (query.length < 2) {
+        return;
+    }
+
     clearTimeout(searchDebounce);
-    searchDebounce = setTimeout(() => performSearch(query), 400);
+    searchDebounce = setTimeout(() => performSearch(query), 600);
 });
 
 searchInput.addEventListener('keydown', (event) => {
