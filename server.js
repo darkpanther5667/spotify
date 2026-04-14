@@ -47,7 +47,18 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
         return reject(new Error('Python runtime not found. Make sure python3 is installed or /app/venv/bin/python exists.'));
     }
 
-    const child = spawn(pythonBin, ['-m', 'yt_dlp', '--no-warnings', '--js-runtimes', 'node', ...args], {
+    const ytdlpArgs = [
+        '-m',
+        'yt_dlp',
+        '--no-warnings',
+        '--js-runtimes',
+        'node',
+        '--no-check-certificate',
+        '--geo-bypass',
+        ...args
+    ];
+
+    const child = spawn(pythonBin, ytdlpArgs, {
         cwd: ROOT,
         windowsHide: true
     });
@@ -66,7 +77,17 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
     child.on('error', reject);
     child.on('close', (code) => {
         if (code !== 0) {
-            reject(new Error(stderr.trim() || `yt-dlp exited with code ${code}`));
+            const message = stderr.trim();
+            const lower = message.toLowerCase();
+            if (lower.includes('sign in to confirm your age') || lower.includes('age-restricted') || lower.includes('sign in to confirm your age')) {
+                reject(new Error('This track is age-restricted and cannot be streamed without YouTube sign-in.'));
+                return;
+            }
+            if (lower.includes('video unavailable') || lower.includes('not available') || lower.includes('private video')) {
+                reject(new Error('This track is unavailable on YouTube.')); 
+                return;
+            }
+            reject(new Error(message || `yt-dlp exited with code ${code}`));
             return;
         }
         resolve(stdout.trim());

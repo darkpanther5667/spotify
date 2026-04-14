@@ -121,6 +121,10 @@ const updateNowPlaying = (song) => {
     });
 };
 
+const isUnavailableError = (message) => {
+    return /sign in|age-restricted|unavailable|private video/i.test(message);
+};
+
 const ensureStreamUrl = async (song) => {
     if (song.streamUrl) return song;
     const streamInfo = await getStreamInfo(song.id);
@@ -149,7 +153,13 @@ const playSongAtIndex = async (index) => {
         }
     } catch (error) {
         console.error('Playback failed:', error);
-        artistNameEl.textContent = `Playback failed: ${error.message}`;
+        song.unavailable = true;
+        song.errorReason = error.message;
+        if (isUnavailableError(error.message)) {
+            artistNameEl.textContent = 'This track cannot be played because it requires YouTube sign-in or is unavailable.';
+        } else {
+            artistNameEl.textContent = `Playback failed: ${error.message}`;
+        }
         updatePlayIcon(false);
     }
 };
@@ -165,7 +175,8 @@ const renderTrackList = (tracks, containerId) => {
 
     tracks.forEach((track, index) => {
         const row = document.createElement('div');
-        row.className = 'track-row' + (songs[currentIndex]?.id === track.id ? ' playing' : '');
+        const unavailableClass = track.unavailable ? ' unavailable' : '';
+        row.className = 'track-row' + (songs[currentIndex]?.id === track.id ? ' playing' : '') + unavailableClass;
         row.dataset.songId = track.id;
         row.innerHTML = `
             <div class="col-num"><span class="row-index">${index + 1}</span><i class='bx bx-play row-play-icon'></i></div>
@@ -180,6 +191,11 @@ const renderTrackList = (tracks, containerId) => {
             <div class="col-time">${track.duration ? fmtSec(track.duration) : '--:--'}</div>
         `;
         row.addEventListener('click', () => {
+            if (track.unavailable) {
+                artistNameEl.textContent = 'This track is unavailable and cannot be played.';
+                updatePlayIcon(false);
+                return;
+            }
             songs = tracks;
             playSongAtIndex(index);
         });

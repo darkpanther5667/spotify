@@ -290,6 +290,8 @@ body {
 }
 .track-row:hover { background: rgba(255,255,255,0.08); }
 .track-row.playing { background: rgba(30,215,96,0.08); }
+.track-row.unavailable { opacity: 0.6; cursor: not-allowed; }
+.track-row.unavailable:hover { background: rgba(255,255,255,0.04); }
 
 .col-num {
     color: var(--text-subdued); font-size: 14px;
