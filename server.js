@@ -23,7 +23,7 @@ const MIME_TYPES = {
 };
 
 const runYtDlp = (args) => new Promise((resolve, reject) => {
-    const child = spawn('python', ['-m', 'yt_dlp', '--no-warnings', '--js-runtimes', 'node', ...args], {
+    const child = spawn('/app/venv/bin/python', ['-m', 'yt_dlp', '--no-warnings', '--js-runtimes', 'node', ...args], {
         cwd: ROOT,
         windowsHide: true
     });

@@ -2,18 +2,20 @@
 FROM node:18
 
 # Install Python and pip
-RUN apt-get update && apt-get install -y python3 python3-pip
+RUN apt-get update && apt-get install -y python3 python3-pip python3-venv
 
 # Set working directory
 WORKDIR /app
 
+# Create a virtual environment for Python packages
+RUN python3 -m venv /app/venv
+
+# Activate venv and install Python dependencies
+RUN /app/venv/bin/pip install -r requirements.txt
+
 # Copy package.json and install Node dependencies
 COPY package.json ./
 RUN npm install
-
-# Copy requirements.txt and install Python dependencies
-COPY requirements.txt ./
-RUN pip3 install -r requirements.txt
 
 # Copy the rest of the code
 COPY . .
