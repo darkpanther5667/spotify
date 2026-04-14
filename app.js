@@ -213,6 +213,9 @@ const renderTrackList = (tracks, containerId) => {
         return;
     }
 
+    // Use document fragment for better performance
+    const fragment = document.createDocumentFragment();
+    
     tracks.forEach((track, index) => {
         const row = document.createElement('div');
         const unavailableClass = track.unavailable ? ' unavailable' : '';
@@ -221,7 +224,7 @@ const renderTrackList = (tracks, containerId) => {
         row.innerHTML = `
             <div class="col-num"><span class="row-index">${index + 1}</span><i class='bx bx-play row-play-icon'></i></div>
             <div class="col-title">
-                <img src="${escapeHtml(track.thumb)}" alt="art" onerror="this.src='${fallbackThumb}'">
+                <img src="" data-src="${escapeHtml(track.thumb)}" alt="art" loading="lazy" onerror="this.src='${fallbackThumb}'">
                 <div class="title-info">
                     <div class="t-name">${escapeHtml(track.title)}</div>
                     <div class="t-artist">${escapeHtml(track.artist)}</div>
@@ -239,8 +242,32 @@ const renderTrackList = (tracks, containerId) => {
             songs = tracks;
             playSongAtIndex(index);
         });
-        container.appendChild(row);
+        fragment.appendChild(row);
     });
+    
+    container.appendChild(fragment);
+
+    // Lazy load images
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        delete img.dataset.src;
+                    }
+                    obs.unobserve(img);
+                }
+            });
+        });
+        container.querySelectorAll('img[data-src]').forEach(img => imageObserver.observe(img));
+    } else {
+        // Fallback for older browsers
+        container.querySelectorAll('img[data-src]').forEach(img => {
+            img.src = img.dataset.src;
+        });
+    }
 };
 
 const renderCardGrid = (tracks, containerId) => {
@@ -251,7 +278,7 @@ const renderCardGrid = (tracks, containerId) => {
         const card = document.createElement('div');
         card.className = 'album-card';
         card.innerHTML = `
-            <img src="${escapeHtml(track.thumb)}" alt="art" onerror="this.src='${fallbackThumb}'">
+            <img src="" data-src="${escapeHtml(track.thumb)}" alt="art" loading="lazy" onerror="this.src='${fallbackThumb}'">
             <h4>${escapeHtml(track.title)}</h4>
             <p>${escapeHtml(track.artist)}</p>
             <button class="album-play"><i class='bx bx-play'></i></button>
@@ -267,6 +294,28 @@ const renderCardGrid = (tracks, containerId) => {
         });
         container.appendChild(card);
     });
+
+    // Lazy load images
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        delete img.dataset.src;
+                    }
+                    obs.unobserve(img);
+                }
+            });
+        });
+        container.querySelectorAll('img[data-src]').forEach(img => imageObserver.observe(img));
+    } else {
+        // Fallback for older browsers
+        container.querySelectorAll('img[data-src]').forEach(img => {
+            img.src = img.dataset.src;
+        });
+    }
 };
 
 const renderRecentGrid = (tracks, containerId) => {
@@ -277,7 +326,7 @@ const renderRecentGrid = (tracks, containerId) => {
         const card = document.createElement('div');
         card.className = 'recent-card';
         card.innerHTML = `
-            <img src="${escapeHtml(track.thumb)}" alt="art" onerror="this.src='${fallbackThumb}'">
+            <img src="" data-src="${escapeHtml(track.thumb)}" alt="art" loading="lazy" onerror="this.src='${fallbackThumb}'">
             <span>${escapeHtml(track.title)}</span>
             <button class="card-play"><i class='bx bx-play'></i></button>
         `;
@@ -292,6 +341,28 @@ const renderRecentGrid = (tracks, containerId) => {
         });
         container.appendChild(card);
     });
+
+    // Lazy load images
+    if ('IntersectionObserver' in window) {
+        const imageObserver = new IntersectionObserver((entries, obs) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        delete img.dataset.src;
+                    }
+                    obs.unobserve(img);
+                }
+            });
+        });
+        container.querySelectorAll('img[data-src]').forEach(img => imageObserver.observe(img));
+    } else {
+        // Fallback for older browsers
+        container.querySelectorAll('img[data-src]').forEach(img => {
+            img.src = img.dataset.src;
+        });
+    }
 };
 
 const syncGenrePills = (genre) => {
