@@ -5,7 +5,7 @@
 const API_BASE = '/api/yt';
 const fallbackThumb = 'https://via.placeholder.com/200x200/333/fff.png?text=Music';
 const SEARCH_CACHE_TTL = 30 * 60 * 1000; // 30 min cache for searches
-const REQUEST_TIMEOUT = 65000; // 65 second timeout (matching server)
+const REQUEST_TIMEOUT = 90000; // 90 second timeout
 
 let songs = [];
 let currentIndex = -1;
@@ -402,22 +402,28 @@ const loadHome = async () => {
     currentAbortController = new AbortController();
     const signal = currentAbortController.signal;
 
-    // Show skeletons immediately, load in background
+    // Show skeletons immediately
     const show = (containerId) => document.getElementById(containerId).style.display = 'block';
     show('featured-grid');
+    show('trending-grid');
+    show('new-releases-grid');
     
     try {
-        // Load featured first (most visible) - smaller limit for speed
-        const featured = await searchSongs('bollywood hits songs', 12, signal);
+        // Load SEQUENTIALLY (not parallel) to avoid overwhelming yt-dlp
+        // Featured section first (most visible)
+        const featured = await searchSongs('bollywood hits songs', 10, signal);
         renderRecentGrid(featured, 'featured-grid');
+        showRuntimeBanner('Featured loaded. Loading trending...');
         
-        // Load trending and releases in parallel in background
-        const [trending, releases] = await Promise.all([
-            searchSongs('punjabi hits songs', 12, signal),
-            searchSongs('new hindi songs', 12, signal)
-        ]);
+        // Then trending
+        const trending = await searchSongs('punjabi hits songs', 10, signal);
         renderCardGrid(trending, 'trending-grid');
+        showRuntimeBanner('Trending loaded. Loading new releases...');
+        
+        // Finally new releases
+        const releases = await searchSongs('new hindi songs', 10, signal);
         renderCardGrid(releases, 'new-releases-grid');
+        
         clearRuntimeBanner();
     } catch (error) {
         if (error.name === 'AbortError') return;
@@ -442,6 +448,10 @@ window.navigate = (view) => {
 
     if (view === 'search') {
         setTimeout(() => searchInput.focus(), 100);
+    }
+
+    if (view === 'home') {
+        loadHome();
     }
 
     if (view === 'library') {

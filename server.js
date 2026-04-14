@@ -9,7 +9,9 @@ const zlib = require('zlib');
 const PORT = process.env.PORT || 4173;
 const ROOT = __dirname;
 const STREAM_CACHE_TTL_MS = 10 * 60 * 1000;
+const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;  // 15 min cache for search results
 const streamCache = new Map();
+const searchCache = new Map();
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -72,9 +74,10 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
     const timeoutHandle = setTimeout(() => {
         if (!completed) {
             child.kill();
+            console.error(`[yt-dlp] Timeout after 90s: ${args.join(' ').substring(0, 50)}`);
             reject(new Error('Search timed out. Please try again.'));
         }
-    }, 60000);  // 60 sec timeout - yt-dlp can be slow
+    }, 90000);  // 90 sec timeout - yt-dlp can be very slow
 
     child.stdout.on('data', (chunk) => {
         stdout += chunk.toString();
@@ -157,7 +160,33 @@ const setCachedStream = (id, value) => {
     });
 };
 
+const getCachedSearch = (query, limit) => {
+    const key = `${query}|${limit}`;
+    const cached = searchCache.get(key);
+    if (!cached) return null;
+    if (cached.expiresAt < Date.now()) {
+        searchCache.delete(key);
+        return null;
+    }
+    return cached.results;
+};
+
+const setCachedSearch = (query, limit, results) => {
+    const key = `${query}|${limit}`;
+    searchCache.set(key, {
+        results,
+        expiresAt: Date.now() + SEARCH_CACHE_TTL_MS
+    });
+};
+
 const searchYoutube = async (query, limit) => {
+    // Check server-side cache FIRST
+    const cachedResults = getCachedSearch(query, limit);
+    if (cachedResults) {
+        console.log(`[Cache] Search hit: "${query.substring(0, 40)}" (${cachedResults.length} results)`);
+        return cachedResults;
+    }
+    
     // Minimal search for speed - just need to find something playable
     const searchLimit = Math.min(Math.ceil(limit * 1.1), 20);
     const json = await runYtDlp([
@@ -176,7 +205,7 @@ const searchYoutube = async (query, limit) => {
         return true;
     });
 
-    return filtered.slice(0, limit).map((entry) => ({
+    const results = filtered.slice(0, limit).map((entry) => ({
         id: entry.id,
         title: entry.title,
         artist: entry.channel || entry.uploader || 'YouTube',
@@ -184,6 +213,10 @@ const searchYoutube = async (query, limit) => {
         thumb: entry.thumbnails?.[1]?.url || entry.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`,
         duration: entry.duration ? Math.round(entry.duration) : null
     }));
+    
+    // Cache the results for future requests
+    setCachedSearch(query, limit, results);
+    return results;
 };
 
 const getStream = async (id) => {
