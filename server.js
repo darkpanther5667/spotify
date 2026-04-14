@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 const { spawn } = require('child_process');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 4173;
 const ROOT = __dirname;
@@ -110,13 +111,31 @@ const runYtDlp = (args) => new Promise((resolve, reject) => {
     });
 });
 
-const sendJson = (res, statusCode, body) => {
-    res.writeHead(statusCode, {
+const sendJson = (res, statusCode, body, req = null) => {
+    const json = JSON.stringify(body);
+    const encoding = (req?.headers['accept-encoding'] || '').includes('gzip') ? 'gzip' : 'identity';
+    
+    const headers = {
         'Content-Type': 'application/json; charset=utf-8',
-        'Cache-Control': 'public, max-age=300',  // Cache API responses for 5 min
+        'Cache-Control': 'public, max-age=300',
         'Access-Control-Allow-Origin': '*'
-    });
-    res.end(JSON.stringify(body));
+    };
+    
+    if (encoding === 'gzip' && json.length > 500) {
+        headers['Content-Encoding'] = 'gzip';
+        zlib.gzip(json, (err, compressed) => {
+            if (err) {
+                res.writeHead(500, { 'Content-Type': 'text/plain' });
+                res.end('Compression error');
+                return;
+            }
+            res.writeHead(statusCode, headers);
+            res.end(compressed);
+        });
+    } else {
+        res.writeHead(statusCode, headers);
+        res.end(json);
+    }
 };
 
 const getCachedStream = (id) => {
@@ -247,7 +266,7 @@ const proxyAudio = async (req, res, id) => {
         res.writeHead(upstreamRes.statusCode || 200, passthroughHeaders);
         upstreamRes.pipe(res);
     }).on('error', (error) => {
-        sendJson(res, 502, { status: 502, message: `Audio proxy failed: ${error.message}`, response: null });
+        sendJson(res, 502, { status: 502, message: `Audio proxy failed: ${error.message}`, response: null }, req);
     });
 };
 
@@ -258,11 +277,11 @@ const server = http.createServer(async (req, res) => {
             const query = requestUrl.searchParams.get('q') || '';
             const limit = Math.max(1, Math.min(50, Number(requestUrl.searchParams.get('limit') || 20)));
             if (!query.trim()) {
-                sendJson(res, 400, { status: 400, message: 'Missing q parameter', response: [] });
+                sendJson(res, 400, { status: 400, message: 'Missing q parameter', response: [] }, req);
                 return;
             }
             const results = await searchYoutube(query, limit);
-            sendJson(res, 200, { status: 200, message: 'success', response: results });
+            sendJson(res, 200, { status: 200, message: 'success', response: results }, req);
             return;
         }
 
@@ -270,11 +289,11 @@ const server = http.createServer(async (req, res) => {
             const requestUrl = new URL(req.url, `http://localhost:${PORT}`);
             const id = requestUrl.searchParams.get('id') || '';
             if (!id.trim()) {
-                sendJson(res, 400, { status: 400, message: 'Missing id parameter', response: null });
+                sendJson(res, 400, { status: 400, message: 'Missing id parameter', response: null }, req);
                 return;
             }
             const result = await getStream(id);
-            sendJson(res, 200, { status: 200, message: 'success', response: result });
+            sendJson(res, 200, { status: 200, message: 'success', response: result }, req);
             return;
         }
 
@@ -282,7 +301,7 @@ const server = http.createServer(async (req, res) => {
             const requestUrl = new URL(req.url, `http://localhost:${PORT}`);
             const id = requestUrl.searchParams.get('id') || '';
             if (!id.trim()) {
-                sendJson(res, 400, { status: 400, message: 'Missing id parameter', response: null });
+                sendJson(res, 400, { status: 400, message: 'Missing id parameter', response: null }, req);
                 return;
             }
             await proxyAudio(req, res, id);
@@ -316,7 +335,7 @@ const server = http.createServer(async (req, res) => {
             res.end(content);
         });
     } catch (error) {
-        sendJson(res, 500, { status: 500, message: error.message, response: null });
+        sendJson(res, 500, { status: 500, message: error.message, response: null }, req);
     }
 });
 
