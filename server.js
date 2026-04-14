@@ -187,18 +187,64 @@ const searchYoutube = async (query, limit) => {
         return cachedResults;
     }
     
-    // Minimal search for speed - just need to find something playable
+    console.log(`[Search] Fetching: "${query}" via Invidious API`);
+    
+    // Use Invidious API (no bot detection, no cookies needed)
+    return new Promise((resolve, reject) => {
+        const invidious = 'https://iv.nboeck.de';
+        const searchUrl = `${invidious}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+        
+        https.get(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+                try {
+                    if (res.statusCode !== 200) {
+                        throw new Error(`Invidious API error: ${res.statusCode}`);
+                    }
+                    
+                    const data = JSON.parse(body);
+                    const results = (data || [])
+                        .filter(item => item.type === 'video')
+                        .slice(0, limit)
+                        .map(item => ({
+                            id: item.videoId,
+                            title: item.title,
+                            artist: item.author || 'YouTube',
+                            album: 'YouTube',
+                            thumb: item.videoThumbnails?.[item.videoThumbnails.length - 1]?.url || 
+                                    `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`,
+                            duration: item.lengthSeconds ? Math.round(item.lengthSeconds) : null
+                        }));
+                    
+                    console.log(`[Search] Success: ${results.length} results from Invidious`);
+                    setCachedSearch(query, limit, results);
+                    resolve(results);
+                } catch (error) {
+                    console.error(`[Invidious Parse] Error: ${error.message}`);
+                    searchYoutubeFallback(query, limit).then(resolve).catch(reject);
+                }
+            });
+        }).on('error', (error) => {
+            console.error(`[Invidious] Connection error: ${error.message}`);
+            searchYoutubeFallback(query, limit).then(resolve).catch(reject);
+        });
+    });
+};
+
+const searchYoutubeFallback = async (query, limit) => {
+    console.log(`[yt-dlp] Attempting fallback with aggressive flags...`);
     const searchLimit = Math.min(Math.ceil(limit * 1.1), 20);
     const json = await runYtDlp([
         '--dump-single-json',
-        '--match-filters', '!is_live',  // Pre-filter live streams
+        '--match-filters', '!is_live',
+        '--extractor-args', 'youtube:player_client=web_embedded',
         `ytsearch${searchLimit}:${query}`
     ]);
 
     const data = JSON.parse(json);
     const filtered = (data.entries || []).filter((entry) => {
         if (!entry || !entry.id || !entry.title) return false;
-        // Quick availability check
         if (entry.availability !== undefined && entry.availability !== 'public') return false;
         if (entry.age_limit && entry.age_limit > 0) return false;
         if (entry.is_live) return false;
@@ -214,7 +260,6 @@ const searchYoutube = async (query, limit) => {
         duration: entry.duration ? Math.round(entry.duration) : null
     }));
     
-    // Cache the results for future requests
     setCachedSearch(query, limit, results);
     return results;
 };
@@ -225,12 +270,72 @@ const getStream = async (id) => {
         return cached;
     }
 
+    console.log(`[Stream] Getting audio for: ${id} via Invidious`);
+    
+    return new Promise((resolve, reject) => {
+        // Try Invidious first
+        const invidious = 'https://iv.nboeck.de';
+        const videoUrl = `${invidious}/api/v1/videos/${id}`;
+        
+        https.get(videoUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
+                try {
+                    if (res.statusCode !== 200) {
+                        throw new Error(`Invidious API error: ${res.statusCode}`);
+                    }
+                    
+                    const data = JSON.parse(body);
+                    
+                    // Find best audio format from Invidious
+                    const audioFormats = (data.formatStreams || [])
+                        .filter(f => f.type && f.type.includes('audio'))
+                        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+                    
+                    if (!audioFormats.length) {
+                        throw new Error('No audio streams available');
+                    }
+                    
+                    const preferred = audioFormats[0];
+                    const streamUrl = `${invidious}${preferred.url}`;
+                    
+                    const result = {
+                        id: data.videoId,
+                        title: data.title,
+                        artist: data.author || 'YouTube',
+                        album: 'YouTube',
+                        thumb: data.videoThumbnails?.[data.videoThumbnails.length - 1]?.url || 
+                                `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+                        duration: data.lengthSeconds ? Math.round(data.lengthSeconds) : null,
+                        streamUrl: streamUrl,
+                        mimeType: 'audio/aac',
+                        proxyUrl: `/api/yt/audio?id=${encodeURIComponent(id)}`
+                    };
+                    
+                    console.log(`[Stream] Success via Invidious: ${result.title}`);
+                    setCachedStream(id, result);
+                    resolve(result);
+                } catch (error) {
+                    console.error(`[Invidious Stream] Error: ${error.message}`);
+                    getStreamFallback(id).then(resolve).catch(reject);
+                }
+            });
+        }).on('error', (error) => {
+            console.error(`[Invidious] Connection error: ${error.message}`);
+            getStreamFallback(id).then(resolve).catch(reject);
+        });
+    });
+};
+
+const getStreamFallback = async (id) => {
+    console.log(`[yt-dlp] Attempting fallback for stream: ${id}`);
+    
     const json = await runYtDlp([
         '--dump-single-json',
         '-f',
         'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
-        '--no-check-certificate',
-        '--geo-bypass',
+        '--extractor-args', 'youtube:player_client=web_embedded',
         `https://www.youtube.com/watch?v=${id}`
     ]);
 
