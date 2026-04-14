@@ -10,7 +10,8 @@ WORKDIR /app
 # Create a virtual environment for Python packages
 RUN python3 -m venv /app/venv
 
-# Activate venv and install Python dependencies
+# Copy requirements.txt and install Python dependencies
+COPY requirements.txt ./
 RUN /app/venv/bin/pip install -r requirements.txt
 
 # Copy package.json and install Node dependencies
