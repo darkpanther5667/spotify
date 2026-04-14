@@ -1,0 +1,16 @@
+{
+  "name": "spotify-clone",
+  "version": "1.0.0",
+  "description": "A Spotify clone using YouTube backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {},
+  "keywords": ["spotify", "clone", "music", "streaming"],
+  "author": "",
+  "license": "ISC"
+}
