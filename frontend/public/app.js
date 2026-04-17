@@ -166,12 +166,8 @@ const isUnavailableError = (message) => {
 };
 
 const ensureStreamUrl = async (song) => {
-    if (song.streamUrl) return song;
-    const streamInfo = await getStreamInfo(song.id);
-    Object.assign(song, streamInfo);
-    if (song.proxyUrl) {
-        song.streamUrl = song.proxyUrl;
-    }
+    // Always use proxy URL to avoid CORS issues
+    song.streamUrl = `${API_BASE}/audio?id=${encodeURIComponent(song.id)}`;
     return song;
 };
 
