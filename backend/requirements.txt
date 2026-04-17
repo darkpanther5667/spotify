@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+motor
+pydantic
+httpx
+yt-dlp
